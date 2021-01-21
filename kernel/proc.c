@@ -274,6 +274,7 @@ fork(void)
     return -1;
   }
   np->sz = p->sz;
+  np->ta = p->ta;
 
   np->parent = p;
 
@@ -692,4 +693,18 @@ procdump(void)
     printf("%d %s %s", p->pid, state, p->name);
     printf("\n");
   }
+}
+
+int
+get_nproc(void)
+{
+  int i;
+  struct proc *p;
+  for(i = 0, p = proc; p < &proc[NPROC]; p++){
+    if(p->state == UNUSED)
+      continue;
+    i++;
+  }
+
+  return i;
 }
