@@ -16,6 +16,9 @@ int nextpid = 1;
 struct spinlock pid_lock;
 
 extern void forkret(void);
+extern void freewalk(pagetable_t);
+extern void kvminithart();
+extern void ukvminithart(pagetable_t);
 static void wakeup1(struct proc *chan);
 static void freeproc(struct proc *p);
 
@@ -121,6 +124,10 @@ found:
     return 0;
   }
 
+  // Lab3:
+  // An empty user kernel page table.
+  p->kpagetable = ukvminit();
+
   // Set up new context to start executing at forkret,
   // which returns to user space.
   memset(&p->context, 0, sizeof(p->context));
@@ -141,7 +148,10 @@ freeproc(struct proc *p)
   p->trapframe = 0;
   if(p->pagetable)
     proc_freepagetable(p->pagetable, p->sz);
+  if(p->kpagetable)
+    proc_freekpagetable(p->kpagetable);
   p->pagetable = 0;
+  p->kpagetable = 0;
   p->sz = 0;
   p->pid = 0;
   p->parent = 0;
@@ -193,6 +203,23 @@ proc_freepagetable(pagetable_t pagetable, uint64 sz)
   uvmunmap(pagetable, TRAMPOLINE, 1, 0);
   uvmunmap(pagetable, TRAPFRAME, 1, 0);
   uvmfree(pagetable, sz);
+}
+
+void
+proc_freekpagetable(pagetable_t pagetable)
+{
+  pagetable_t pte0 = (pagetable_t)PTE2PA(pagetable[0]);
+
+  for(int i = 0;i < 512;i++){
+    pagetable_t pte = &pte0[i];
+    if(*pte & PTE_V){
+      kfree((void*)PTE2PA(*pte));
+      *pte = 0;
+    }
+  }
+
+  kfree((void*)pte0);
+  kfree((void*)pagetable);
 }
 
 // a user program that calls exec("/init")
@@ -468,6 +495,12 @@ scheduler(void)
     for(p = proc; p < &proc[NPROC]; p++) {
       acquire(&p->lock);
       if(p->state == RUNNABLE) {
+        // #### Lab3:
+        ukvminithart(p->kpagetable);
+
+        kvminithart();
+        // ####
+
         // Switch to chosen process.  It is the process's job
         // to release its lock and then reacquire it
         // before jumping back to us.
@@ -482,6 +515,7 @@ scheduler(void)
         found = 1;
       }
       release(&p->lock);
+      kvminithart();
     }
 #if !defined (LAB_FS)
     if(found == 0) {

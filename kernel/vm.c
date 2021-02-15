@@ -44,7 +44,29 @@ kvminit()
 
   // map the trampoline for trap entry/exit to
   // the highest virtual address in the kernel.
-  kvmmap(TRAMPOLINE, (uint64)trampoline, PGSIZE, PTE_R | PTE_X);
+  kvmmap(TRAMPOLINE, (uint64)trampoline, PGSIZE, PTE_R | PTE_X); 
+}
+
+/*
+ * create a copy of kernel_pagetable per process for lab-pgtbl.
+ */
+pagetable_t
+ukvminit()
+{
+  pagetable_t ukernel_pagetable = uvmcreate();
+  if(ukernel_pagetable == 0)
+    panic("ukvminit");
+
+  for(int i = 1;i < 512;i++) {
+    ukernel_pagetable[i] = kernel_pagetable[i];
+  }
+
+  ukvmmap(ukernel_pagetable, UART0, UART0, PGSIZE, PTE_R | PTE_W);
+  ukvmmap(ukernel_pagetable, VIRTIO0, VIRTIO0, PGSIZE, PTE_R | PTE_W);
+  ukvmmap(ukernel_pagetable, CLINT, CLINT, 0x10000, PTE_R | PTE_W);
+  ukvmmap(ukernel_pagetable, PLIC, PLIC, 0x400000, PTE_R | PTE_W);
+
+  return ukernel_pagetable;
 }
 
 // Switch h/w page table register to the kernel's page table,
@@ -53,6 +75,13 @@ void
 kvminithart()
 {
   w_satp(MAKE_SATP(kernel_pagetable));
+  sfence_vma();
+}
+
+void
+ukvminithart(pagetable_t ukernel_pagetable)
+{
+  w_satp(MAKE_SATP(ukernel_pagetable));
   sfence_vma();
 }
 
@@ -85,6 +114,7 @@ walk(pagetable_t pagetable, uint64 va, int alloc)
       *pte = PA2PTE(pagetable) | PTE_V;
     }
   }
+  // walk will not create leaf pages
   return &pagetable[PX(0, va)];
 }
 
@@ -121,6 +151,13 @@ kvmmap(uint64 va, uint64 pa, uint64 sz, int perm)
     panic("kvmmap");
 }
 
+void
+ukvmmap(pagetable_t ukernel_pagetable, uint64 va, uint64 pa, uint64 sz, int perm)
+{
+  if(mappages(ukernel_pagetable, va, sz, pa, perm) != 0)
+    panic("kvmmap");
+}
+
 // translate a kernel virtual address to
 // a physical address. only needed for
 // addresses on the stack.
@@ -152,6 +189,7 @@ mappages(pagetable_t pagetable, uint64 va, uint64 size, uint64 pa, int perm)
   pte_t *pte;
 
   a = PGROUNDDOWN(va);
+  // last is the page address to be allocated at last
   last = PGROUNDDOWN(va + size - 1);
   for(;;){
     if((pte = walk(pagetable, a, 1)) == 0)
