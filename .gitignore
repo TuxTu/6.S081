@@ -5,6 +5,10 @@ _*
 *.asm
 *.sym
 *.img
+<<<<<<< HEAD
+=======
+*.pyc
+>>>>>>> 7d085c803a458b78e6bd19f34555e09c921afdbb
 vectors.S
 bootblock
 entryother
@@ -18,7 +22,10 @@ user/usys.S
 myapi.key
 *-handin.tar.gz
 xv6.out*
+<<<<<<< HEAD
 .vagrant/
 submissions/
 ph
 barrier
+=======
+>>>>>>> 7d085c803a458b78e6bd19f34555e09c921afdbb
