@@ -257,6 +257,8 @@ userinit(void)
 
   p->state = RUNNABLE;
 
+  uvm2kvm(p->pagetable, p->kpagetable, 0, p->sz);
+
   release(&p->lock);
 }
 
@@ -276,6 +278,7 @@ growproc(int n)
   } else if(n < 0){
     sz = uvmdealloc(p->pagetable, sz, sz + n);
   }
+  uvm2kvm(p->pagetable, p->kpagetable, p->sz, sz);
   p->sz = sz;
   return 0;
 }
@@ -321,6 +324,8 @@ fork(void)
   pid = np->pid;
 
   np->state = RUNNABLE;
+
+  uvm2kvm(np->pagetable, np->kpagetable, 0, np->sz);
 
   release(&np->lock);
 
@@ -495,18 +500,15 @@ scheduler(void)
     for(p = proc; p < &proc[NPROC]; p++) {
       acquire(&p->lock);
       if(p->state == RUNNABLE) {
-        // #### Lab3:
-        ukvminithart(p->kpagetable);
-
-        kvminithart();
-        // ####
-
         // Switch to chosen process.  It is the process's job
         // to release its lock and then reacquire it
         // before jumping back to us.
         p->state = RUNNING;
         c->proc = p;
+
+        ukvminithart(p->kpagetable);
         swtch(&c->context, &p->context);
+        kvminithart();
 
         // Process is done running for now.
         // It should have changed its p->state before coming back.

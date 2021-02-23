@@ -55,7 +55,7 @@ ukvminit()
 {
   pagetable_t ukernel_pagetable = uvmcreate();
   if(ukernel_pagetable == 0)
-    panic("ukvminit");
+    panic("ukvminit: creating user process's kernel page table failed");
 
   for(int i = 1;i < 512;i++) {
     ukernel_pagetable[i] = kernel_pagetable[i];
@@ -417,6 +417,7 @@ copyout(pagetable_t pagetable, uint64 dstva, char *src, uint64 len)
 int
 copyin(pagetable_t pagetable, char *dst, uint64 srcva, uint64 len)
 {
+  /*
   uint64 n, va0, pa0;
 
   while(len > 0){
@@ -434,6 +435,9 @@ copyin(pagetable_t pagetable, char *dst, uint64 srcva, uint64 len)
     srcva = va0 + PGSIZE;
   }
   return 0;
+  */
+
+  return copyin_new(pagetable, dst, srcva, len); 
 }
 
 // Copy a null-terminated string from user to kernel.
@@ -443,6 +447,7 @@ copyin(pagetable_t pagetable, char *dst, uint64 srcva, uint64 len)
 int
 copyinstr(pagetable_t pagetable, char *dst, uint64 srcva, uint64 max)
 {
+  /*
   uint64 n, va0, pa0;
   int got_null = 0;
 
@@ -477,6 +482,9 @@ copyinstr(pagetable_t pagetable, char *dst, uint64 srcva, uint64 max)
   } else {
     return -1;
   }
+  */
+
+  return copyinstr_new(pagetable, dst, srcva, max);
 }
 
 void
@@ -501,5 +509,29 @@ vmprint(pagetable_t pagetable){
         }
       }
     }
+  }
+}
+
+void
+uvm2kvm(pagetable_t upagetable, pagetable_t kpagetable, uint64 oldsz, uint64 newsz){
+  pte_t *upte, *kpte;
+  uint64 va;
+
+  if(newsz >= PLIC)
+    panic("uvm2kvm: range exceeds the maximum");
+
+  for(va = oldsz;va < newsz;va += PGSIZE){
+    if((kpte = walk(kpagetable, va, 1)) == 0)
+      panic("uvm2kvm: cannot find or alloc process's kernel pte");
+    if((upte = walk(upagetable, va, 0)) == 0)
+      panic("uvm2kvm: cannot find pte in user pagetable");
+    *kpte = *upte;
+    *kpte &= ~(PTE_U | PTE_W | PTE_X);
+  }
+
+  for(va = newsz;va < oldsz;va += PGSIZE){
+    if((kpte = walk(kpagetable, va, 1)) == 0)
+      panic("uvm2kvm: cannot find or alloc process's kernel pte");
+    *kpte &= ~PTE_V;
   }
 }
