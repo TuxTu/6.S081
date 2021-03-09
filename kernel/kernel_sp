@@ -1,0 +1,52 @@
+./exec.c:  p->trapframe->a1 = sp;
+./exec.c:  p->trapframe->epc = elf.entry;  // initial program counter = main
+./exec.c:  p->trapframe->sp = sp; // initial stack pointer
+Binary file ./.trampoline.S.swp matches
+./trampoline.S:	# save the user a0 in p->trapframe->a0
+./trampoline.S:        # restore kernel stack pointer from p->trapframe->kernel_sp
+./trampoline.S:        # make tp hold the current hartid, from p->trapframe->kernel_hartid
+./trampoline.S:        # load the address of usertrap(), p->trapframe->kernel_trap
+./trampoline.S:        # restore kernel page table from p->trapframe->kernel_satp
+./syscall.c:    return p->trapframe->a0;
+./syscall.c:    return p->trapframe->a1;
+./syscall.c:    return p->trapframe->a2;
+./syscall.c:    return p->trapframe->a3;
+./syscall.c:    return p->trapframe->a4;
+./syscall.c:    return p->trapframe->a5;
+./syscall.c:  num = p->trapframe->a7;
+./syscall.c:    p->trapframe->a0 = syscalls[num]();
+./syscall.c:    p->trapframe->a0 = -1;
+Binary file ./.trap.c.swp matches
+./trap.c:  p->trapframe->epc = r_sepc();
+./trap.c:    p->trapframe->epc += 4;
+./trap.c:  p->trapframe->kernel_satp = r_satp();         // kernel page table
+./trap.c:  p->trapframe->kernel_sp = p->kstack + PGSIZE; // process's kernel stack
+./trap.c:  p->trapframe->kernel_trap = (uint64)usertrap;
+./trap.c:  p->trapframe->kernel_hartid = r_tp();         // hartid for cpuid()
+./trap.c:  w_sepc(p->trapframe->epc);
+./kernel.asm:  p->trapframe->epc = 0;      // user program counter
+./kernel.asm:  p->trapframe->sp = PGSIZE;  // user stack pointer
+./kernel.asm:  np->trapframe->a0 = 0;
+./kernel.asm:  p->trapframe->kernel_satp = r_satp();         // kernel page table
+./kernel.asm:  p->trapframe->kernel_sp = p->kstack + PGSIZE; // process's kernel stack
+./kernel.asm:  p->trapframe->kernel_trap = (uint64)usertrap;
+./kernel.asm:  p->trapframe->kernel_hartid = r_tp();         // hartid for cpuid()
+./kernel.asm:  w_sepc(p->trapframe->epc);
+./kernel.asm:  p->trapframe->epc = r_sepc();
+./kernel.asm:    p->trapframe->epc += 4;
+./kernel.asm:    return p->trapframe->a0;
+./kernel.asm:    return p->trapframe->a5;
+./kernel.asm:    return p->trapframe->a1;
+./kernel.asm:    return p->trapframe->a2;
+./kernel.asm:    return p->trapframe->a3;
+./kernel.asm:    return p->trapframe->a4;
+./kernel.asm:    return p->trapframe->a5;
+./kernel.asm:  num = p->trapframe->a7;
+./kernel.asm:    p->trapframe->a0 = syscalls[num]();
+./kernel.asm:    p->trapframe->a0 = -1;
+./kernel.asm:  p->trapframe->a1 = sp;
+./kernel.asm:  p->trapframe->epc = elf.entry;  // initial program counter = main
+./kernel.asm:  p->trapframe->sp = sp; // initial stack pointer
+./proc.c:  p->trapframe->epc = 0;      // user program counter
+./proc.c:  p->trapframe->sp = PGSIZE;  // user stack pointer
+./proc.c:  np->trapframe->a0 = 0;
