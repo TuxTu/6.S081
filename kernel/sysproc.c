@@ -41,16 +41,30 @@ sys_wait(void)
 uint64
 sys_sbrk(void)
 {
-  int addr;
+  int newSize, oldSize;
   int n;
 
   if(argint(0, &n) < 0)
     return -1;
-  addr = myproc()->sz;
-  myproc()->sz = myproc()->sz + n;
+  oldSize = myproc()->sz;
+  newSize = oldSize + n;
+  if (newSize >= MAXVA)
+    return oldSize;
+  if (n < 0){
+    // printf("pid is:%d\n", myproc()->pid);
+    // printf("sbrk: old sz is:%x\n", oldSize);
+    if (newSize > oldSize){
+      newSize = 0;
+      uvmdealloc(myproc()->pagetable, oldSize, newSize);
+    } else{
+      uvmdealloc(myproc()->pagetable, oldSize, newSize);
+    }
+    // printf("sbrk: new sz is:%x\n", newSize);
+  }
+  myproc()->sz = newSize;
 //  if(growproc(n) < 0)
 //    return -1;
- return addr;
+ return oldSize;
 }
 
 uint64
