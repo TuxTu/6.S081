@@ -23,6 +23,7 @@ char buf[BUFSZ];
 char name[3];
 
 int count;
+int countfree();
 
 // what if you pass ridiculous pointers to system calls
 // that read user memory with copyin?
@@ -2256,6 +2257,7 @@ validatetest(char *s)
   hi = 1100*1024;
   for(p = 0; p <= (uint)hi; p += PGSIZE){
     // try to crash the kernel by passing in a bad string pointer
+    printf("p is:%d\n", p);
     if(link("nosuchfile", (char*)p) != -1){
       printf("%s: link should not succeed\n", s);
       exit(1);
@@ -2687,6 +2689,7 @@ main(int argc, char *argv[])
     void (*f)(char *);
     char *s;
   } tests[] = {
+    /*
     {execout, "execout"},
     {copyin, "copyin"},
     {copyout, "copyout"},
@@ -2724,8 +2727,10 @@ main(int argc, char *argv[])
     {kernmem, "kernmem"},
     {sbrkfail, "sbrkfail"},
     {sbrkarg, "sbrkarg"},
+    */
     {validatetest, "validatetest"},
     {stacktest, "stacktest"},
+    /*
     {opentest, "opentest"},
     {writetest, "writetest"},
     {writebig, "writebig"},
@@ -2744,6 +2749,7 @@ main(int argc, char *argv[])
     {iref, "iref"},
     {forktest, "forktest"},
     {bigdir, "bigdir"}, // slow
+    */
     { 0, 0},
   };
 
@@ -2771,6 +2777,8 @@ main(int argc, char *argv[])
       }
     }
   }
+
+  printf("original address space is: %d\n", sbrk(0));  
 
   printf("usertests starting\n");
   int free0 = countfree();

@@ -16,7 +16,6 @@ sparse_memory(char *s)
   char *i, *prev_end, *new_end;
   
   prev_end = sbrk(REGION_SZ);
-  printf("prev_end is %x\n", prev_end);
   if (prev_end == (char*)0xffffffffffffffffL) {
     printf("sbrk() failed\n");
     exit(1);

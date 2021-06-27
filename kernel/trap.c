@@ -70,60 +70,40 @@ usertrap(void)
     // ok
   } else if(r_scause() == 13 || r_scause() == 15) {
     uint64 va = r_stval();
-//    if (va >= p->sz){
-//      p->killed = 1;
-//    } else{
-//      uint64 protectTop = PGROUNDDOWN(p->trapframe->sp);
-//      uint64 stvalTop = PGROUNDUP(va);
-//      if (protectTop != stvalTop){
-//        char *mem = kalloc();
-//        if (mem == 0){
-//          p->killed = 1;
-//        } else{
-//          memset(mem, 0, PGSIZE);
-//          if (mappages(p->pagetable, PGROUNDDOWN(va), PGSIZE, (uint64)mem, PTE_W|PTE_X|PTE_U) != 0){
-//            p->killed = 1;
-//          }
-//        }
-//      }
-//    }
-    va = PGROUNDDOWN(va);
-    if(p->sz >= MAXVA){
-      p->sz = MAXVA;
-      p->killed = 1;
-    } else if(p->sz > va){
-      uint64 ka = (uint64)kalloc();
-      if(ka == 0){
-        printf("page fault: kalloc failed!\n");
-        printf("kalloc failed at va:%x\n", va);
+    // printf("va is %x, p->sz is %x\n", va, p->sz);
+    do{
+      if(va < p->trapframe->sp){
         p->killed = 1;
-      } else{
-        memset((void*)ka, 0, PGSIZE);
-        if(mappages(p->pagetable, va, PGSIZE, ka, PTE_W|PTE_U|PTE_R) != 0){
-          printf("page fault: mappages failed!\n");
-          kfree((void*)ka);
-          p->killed = 1;
-        }
+        break;
       }
-    } else{
-      // printf("proc size is less than va!\n");
-      p->killed = 1;
-    }
-
-//    uint64 ka = (uint64)kalloc();
-//    if(ka == 0){
-//      p->killed = 1;
-//    } else{
-//      memset((void*)ka, 0, PGSIZE);
-//      if(mappages(p->pagetable, va, PGSIZE, ka, PTE_W|PTE_U|PTE_R) != 0){
-//      kfree((void*)ka);
-//      p->killed = 1;
-//    }
-//    va = va + PGSIZE;
-//    }
+      if(p->sz >= MAXVA){
+        p->killed = 1;
+        break;
+      } else if(p->sz > va){
+        va = PGROUNDDOWN(va);
+        uint64 ka = (uint64)kalloc();
+        if(ka == 0){
+          p->killed = 1;
+        } else{
+          memset((void*)ka, 0, PGSIZE);
+          if(walkaddr(p->pagetable, va) != 0){
+            break;
+          }else if(mappages(p->pagetable, va, PGSIZE, ka, PTE_W|PTE_U|PTE_R) != 0){
+            kfree((void*)ka);
+            uvmdealloc(p->pagetable, va, p->sz);
+            p->killed = 1;
+          }
+        }
+      } else{
+        // printf("proc size is less than va!\n");
+        p->killed = 1;
+      }
+    }while(0);
   } else {
-    printf("usertrap(): unexpected scause %p pid=%d\n", r_scause(), p->pid);
-    printf("            sepc=%p stval=%p\n", r_sepc(), r_stval());
+    if (p->sz >= r_stval()){
+      printf("usertrap(): unexpected scause %p pid=%d\n", r_scause(), p->pid);
+      printf("            sepc=%p stval=%p\n", r_sepc(), r_stval());
+    }
     p->killed = 1;
   }
 

@@ -48,23 +48,22 @@ sys_sbrk(void)
     return -1;
   oldSize = myproc()->sz;
   newSize = oldSize + n;
-  if (newSize >= MAXVA)
+  if (newSize >= MAXVA || newSize < 0){
+    myproc()->killed = 1;
     return oldSize;
+  }
   if (n < 0){
-    // printf("pid is:%d\n", myproc()->pid);
-    // printf("sbrk: old sz is:%x\n", oldSize);
     if (newSize > oldSize){
       newSize = 0;
       uvmdealloc(myproc()->pagetable, oldSize, newSize);
     } else{
       uvmdealloc(myproc()->pagetable, oldSize, newSize);
     }
-    // printf("sbrk: new sz is:%x\n", newSize);
   }
   myproc()->sz = newSize;
 //  if(growproc(n) < 0)
 //    return -1;
- return oldSize;
+  return oldSize;
 }
 
 uint64
