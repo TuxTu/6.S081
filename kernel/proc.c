@@ -523,6 +523,7 @@ void
 yield(void)
 {
   struct proc *p = myproc();
+  // printf("test\n");
   acquire(&p->lock);
   p->state = RUNNABLE;
   sched();
