@@ -296,6 +296,8 @@ fork(void)
   np->state = RUNNABLE;
 
   release(&np->lock);
+	// printf("fork\n");
+	// printf("parent pid is:%d, child pid is:%d\n", p->pid, np->pid);
 
   return pid;
 }
@@ -334,6 +336,7 @@ exit(int status)
 {
   struct proc *p = myproc();
 
+	// printf("p is %d, initproc is %d\n", p->pid, initproc->pid);
   if(p == initproc)
     panic("init exiting");
 
