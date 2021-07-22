@@ -188,6 +188,8 @@ remappages(pagetable_t pagetable, uint64 va)
 
 	va = PGROUNDDOWN(va);
 
+	if (va > MAXVA)
+		return -1;
 	if((pte = walk(pagetable, va, 0)) == 0)
 		return -1;
 	if(!(*pte & PTE_C && *pte & PTE_V && *pte & ~PTE_W))
@@ -421,13 +423,14 @@ copyout(pagetable_t pagetable, uint64 dstva, char *src, uint64 len)
 	// printf("copyout\n");
   while(len > 0){
     va0 = PGROUNDDOWN(dstva);
+		pte_t *pte = walk(pagetable, va0, 0);
+		if(pte == 0)
+			return -1;
+		if((*pte & PTE_V) == 0)
+			return -1;
+		if((*pte & PTE_C) && (remappages(pagetable, va0) != 0))
+    	return -1;
     pa0 = walkaddr(pagetable, va0);
-    if(pa0 == 0){
-			if(remappages(pagetable, va0) != 0)
-      	return -1;
-			else
-				pa0 = walkaddr(pagetable, va0);
-		}
     n = PGSIZE - (dstva - va0);
     if(n > len)
       n = len;
