@@ -295,6 +295,7 @@ fork(void)
 
   np->state = RUNNABLE;
 
+
   release(&np->lock);
 	// printf("fork\n");
 	// printf("parent pid is:%d, child pid is:%d\n", p->pid, np->pid);

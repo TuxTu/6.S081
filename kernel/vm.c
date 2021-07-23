@@ -80,8 +80,10 @@ kvminithart()
 pte_t *
 walk(pagetable_t pagetable, uint64 va, int alloc)
 {
-  if(va >= MAXVA)
+  if(va >= MAXVA){
+		printf("va is %x\n", va);
     panic("walk");
+	}
 
   for(int level = 2; level > 0; level--) {
     pte_t *pte = &pagetable[PX(level, va)];
@@ -192,21 +194,33 @@ remappages(pagetable_t pagetable, uint64 va)
 		return -1;
 	if((pte = walk(pagetable, va, 0)) == 0)
 		return -1;
-	if(!(*pte & PTE_C && *pte & PTE_V && *pte & ~PTE_W))
+	if(!(*pte & PTE_C && *pte & PTE_V && *pte & ~PTE_W)){
+		if(!(*pte & PTE_C))
+			printf("error\n");
 		return -1;
+	}
 	pa = PTE2PA(*pte);
-	if ((mem = kalloc()) == 0)
-		return -1;
-	memmove(mem, (char*)pa, PGSIZE);
-	
-	*pte = PA2PTE(mem) | PTE_W | PTE_FLAGS(*pte);
 
 	acquire(&cowlist.lock);
+	if (cowlist.list[(pa-KERNBASE)>>PGSHIFT] > 1){
+		if ((mem = kalloc()) == 0)
+			goto err;
+		memmove(mem, (void*)pa, PGSIZE);
+	} else if (cowlist.list[(pa-KERNBASE)>>PGSHIFT] == 1){
+		mem = (char*)pa;
+	} else{
+		goto err;
+	}
+	*pte = PA2PTE(mem) | PTE_W | PTE_FLAGS(*pte);
+	*pte &= ~PTE_C;
 	cowlist.list[(pa-KERNBASE)>>PGSHIFT]--;
-	cowlist.list[((uint64)mem-KERNBASE)>>PGSHIFT]++;
 	release(&cowlist.lock);
 
 	return 0;
+
+	err:
+	release(&cowlist.lock);
+	return -1;
 }
 
 // Remove npages of mappings starting from va. va must be
@@ -217,6 +231,7 @@ uvmunmap(pagetable_t pagetable, uint64 va, uint64 npages, int do_free)
 {
   uint64 pa, a;
   pte_t *pte;
+
 
   if((va % PGSIZE) != 0)
     panic("uvmunmap: not aligned");
@@ -229,20 +244,23 @@ uvmunmap(pagetable_t pagetable, uint64 va, uint64 npages, int do_free)
     if(PTE_FLAGS(*pte) == PTE_V)
       panic("uvmunmap: not a leaf");
 		pa = PTE2PA(*pte);
-    if(do_free){
-			acquire(&cowlist.lock);
+		acquire(&cowlist.lock);
+		if (*pte & PTE_C){
+			if ((cowlist.list[(pa - KERNBASE) >> PGSHIFT] - 1) <= 0){
+				cowlist.list[(pa - KERNBASE) >> PGSHIFT] = 0;
+			} 
+		}
 
+    if(do_free){
 			if (*pte & PTE_C){
-				if (--cowlist.list[(pa - KERNBASE) >> PGSHIFT] <= 0){
-					cowlist.list[(pa - KERNBASE) >> PGSHIFT] = 0;
-      		kfree((void*)pa);
+				if (cowlist.list[(pa - KERNBASE) >> PGSHIFT] == 0){
+					kfree((void*)pa);
 				} else
 					cowlist.list[(pa - KERNBASE) >> PGSHIFT]--;
 			} else
-				kfree((void*)pa);
-
-			release(&cowlist.lock);
-    }
+					kfree((void*)pa);
+    } 
+		release(&cowlist.lock);
     *pte = 0;
   }
 }
@@ -376,7 +394,10 @@ uvmcopy(pagetable_t old, pagetable_t new, uint64 sz)
 		*pte |= PTE_C;
  	  flags = PTE_FLAGS(*pte) | PTE_C;
 		acquire(&cowlist.lock);
-		cowlist.list[(pa - KERNBASE) >> PGSHIFT] += (cowlist.list[(pa - KERNBASE) >> PGSHIFT] == 0) ? 2 : 1;
+		if(cowlist.list[(pa - KERNBASE) >> PGSHIFT] == 0)
+			cowlist.list[(pa - KERNBASE) >> PGSHIFT] = 2;
+		else
+			cowlist.list[(pa - KERNBASE) >> PGSHIFT]++;
 		release(&cowlist.lock);
 		if(mappages(new, i, PGSIZE, (uint64)pa, flags) != 0)
 		  panic("uvmcopy: mappages failed");
@@ -423,6 +444,8 @@ copyout(pagetable_t pagetable, uint64 dstva, char *src, uint64 len)
 	// printf("copyout\n");
   while(len > 0){
     va0 = PGROUNDDOWN(dstva);
+		if(va0 >= MAXVA)
+			return -1;
 		pte_t *pte = walk(pagetable, va0, 0);
 		if(pte == 0)
 			return -1;
@@ -430,7 +453,9 @@ copyout(pagetable_t pagetable, uint64 dstva, char *src, uint64 len)
 			return -1;
 		if((*pte & PTE_C) && (remappages(pagetable, va0) != 0))
     	return -1;
-    pa0 = walkaddr(pagetable, va0);
+ 	  pa0 = walkaddr(pagetable, va0);
+		if(pa0 == 0)
+			return -1;
     n = PGSIZE - (dstva - va0);
     if(n > len)
       n = len;
