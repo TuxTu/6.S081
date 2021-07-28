@@ -1,0 +1,4 @@
+Reason for why key being missing: 
+# When insert new keys in tables,
+# if 2 threads simultaneously insert the same table,
+# it will get problem in assign the table point to new key's entry
