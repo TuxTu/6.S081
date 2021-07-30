@@ -5,7 +5,6 @@
 #include "riscv.h"
 #include "defs.h"
 #include "fs.h"
-#include "spinlock.h"
 
 /*
  * the kernel's page table.
@@ -16,11 +15,6 @@ extern char etext[];  // kernel.ld sets this to end of kernel code.
 
 extern char trampoline[]; // trampoline.S
 
-struct{
-	struct spinlock lock;
-	char list[(PHYSTOP-KERNBASE) >> PGSHIFT];
-} cowlist;
-
 /*
  * create a direct-map page table for the kernel.
  */
@@ -30,17 +24,11 @@ kvminit()
   kernel_pagetable = (pagetable_t) kalloc();
   memset(kernel_pagetable, 0, PGSIZE);
 
-	initlock(&cowlist.lock, "cowlist");
-	memset(cowlist.list, 0, (PHYSTOP-KERNBASE) >> PGSHIFT);
-
   // uart registers
   kvmmap(UART0, UART0, PGSIZE, PTE_R | PTE_W);
 
   // virtio mmio disk interface
   kvmmap(VIRTIO0, VIRTIO0, PGSIZE, PTE_R | PTE_W);
-
-  // CLINT
-  kvmmap(CLINT, CLINT, 0x10000, PTE_R | PTE_W);
 
   // PLIC
   kvmmap(PLIC, PLIC, 0x400000, PTE_R | PTE_W);
@@ -77,13 +65,11 @@ kvminithart()
 //   21..29 -- 9 bits of level-1 index.
 //   12..20 -- 9 bits of level-0 index.
 //    0..11 -- 12 bits of byte offset within the page.
-pte_t *
+static pte_t *
 walk(pagetable_t pagetable, uint64 va, int alloc)
 {
-  if(va >= MAXVA){
-		printf("va is %x\n", va);
+  if(va >= MAXVA)
     panic("walk");
-	}
 
   for(int level = 2; level > 0; level--) {
     pte_t *pte = &pagetable[PX(level, va)];
@@ -132,26 +118,6 @@ kvmmap(uint64 va, uint64 pa, uint64 sz, int perm)
     panic("kvmmap");
 }
 
-// translate a kernel virtual address to
-// a physical address. only needed for
-// addresses on the stack.
-// assumes va is page aligned.
-uint64
-kvmpa(uint64 va)
-{
-  uint64 off = va % PGSIZE;
-  pte_t *pte;
-  uint64 pa;
-  
-  pte = walk(kernel_pagetable, va, 0);
-  if(pte == 0)
-    panic("kvmpa");
-  if((*pte & PTE_V) == 0)
-    panic("kvmpa");
-  pa = PTE2PA(*pte);
-  return pa+off;
-}
-
 // Create PTEs for virtual addresses starting at va that refer to
 // physical addresses starting at pa. va and size might not
 // be page-aligned. Returns 0 on success, -1 if walk() couldn't
@@ -167,9 +133,8 @@ mappages(pagetable_t pagetable, uint64 va, uint64 size, uint64 pa, int perm)
   for(;;){
     if((pte = walk(pagetable, a, 1)) == 0)
       return -1;
-    if(*pte & PTE_V){
+    if(*pte & PTE_V)
       panic("remap");
-		}
     *pte = PA2PTE(pa) | perm | PTE_V;
     if(a == last)
       break;
@@ -179,59 +144,14 @@ mappages(pagetable_t pagetable, uint64 va, uint64 size, uint64 pa, int perm)
   return 0;
 }
 
-// Remap the page for Copy-on-Wirte
-int
-remappages(pagetable_t pagetable, uint64 va)
-{
-	uint64 pa;
-	pte_t *pte;
-
-	char *mem;
-
-	va = PGROUNDDOWN(va);
-
-	if (va > MAXVA)
-		return -1;
-	if((pte = walk(pagetable, va, 0)) == 0)
-		return -1;
-	if(!(*pte & PTE_C && *pte & PTE_V && *pte & ~PTE_W)){
-		if(!(*pte & PTE_C))
-			printf("error\n");
-		return -1;
-	}
-	pa = PTE2PA(*pte);
-
-	acquire(&cowlist.lock);
-	if (cowlist.list[(pa-KERNBASE)>>PGSHIFT] > 1){
-		if ((mem = kalloc()) == 0)
-			goto err;
-		memmove(mem, (void*)pa, PGSIZE);
-	} else if (cowlist.list[(pa-KERNBASE)>>PGSHIFT] == 1){
-		mem = (char*)pa;
-	} else{
-		goto err;
-	}
-	*pte = PA2PTE(mem) | PTE_W | PTE_FLAGS(*pte);
-	*pte &= ~PTE_C;
-	cowlist.list[(pa-KERNBASE)>>PGSHIFT]--;
-	release(&cowlist.lock);
-
-	return 0;
-
-	err:
-	release(&cowlist.lock);
-	return -1;
-}
-
 // Remove npages of mappings starting from va. va must be
 // page-aligned. The mappings must exist.
 // Optionally free the physical memory.
 void
 uvmunmap(pagetable_t pagetable, uint64 va, uint64 npages, int do_free)
 {
-  uint64 pa, a;
+  uint64 a;
   pte_t *pte;
-
 
   if((va % PGSIZE) != 0)
     panic("uvmunmap: not aligned");
@@ -243,24 +163,10 @@ uvmunmap(pagetable_t pagetable, uint64 va, uint64 npages, int do_free)
       panic("uvmunmap: not mapped");
     if(PTE_FLAGS(*pte) == PTE_V)
       panic("uvmunmap: not a leaf");
-		pa = PTE2PA(*pte);
-		acquire(&cowlist.lock);
-		if (*pte & PTE_C){
-			if ((cowlist.list[(pa - KERNBASE) >> PGSHIFT] - 1) <= 0){
-				cowlist.list[(pa - KERNBASE) >> PGSHIFT] = 0;
-			} 
-		}
-
     if(do_free){
-			if (*pte & PTE_C){
-				if (cowlist.list[(pa - KERNBASE) >> PGSHIFT] == 0){
-					kfree((void*)pa);
-				} else
-					cowlist.list[(pa - KERNBASE) >> PGSHIFT]--;
-			} else
-					kfree((void*)pa);
-    } 
-		release(&cowlist.lock);
+      uint64 pa = PTE2PA(*pte);
+      kfree((void*)pa);
+    }
     *pte = 0;
   }
 }
@@ -382,7 +288,7 @@ uvmcopy(pagetable_t old, pagetable_t new, uint64 sz)
   pte_t *pte;
   uint64 pa, i;
   uint flags;
-  // char *mem;
+  char *mem;
 
   for(i = 0; i < sz; i += PGSIZE){
     if((pte = walk(old, i, 0)) == 0)
@@ -390,18 +296,7 @@ uvmcopy(pagetable_t old, pagetable_t new, uint64 sz)
     if((*pte & PTE_V) == 0)
       panic("uvmcopy: page not present");
     pa = PTE2PA(*pte);
-		*pte &= ~PTE_W;
-		*pte |= PTE_C;
- 	  flags = PTE_FLAGS(*pte) | PTE_C;
-		acquire(&cowlist.lock);
-		if(cowlist.list[(pa - KERNBASE) >> PGSHIFT] == 0)
-			cowlist.list[(pa - KERNBASE) >> PGSHIFT] = 2;
-		else
-			cowlist.list[(pa - KERNBASE) >> PGSHIFT]++;
-		release(&cowlist.lock);
-		if(mappages(new, i, PGSIZE, (uint64)pa, flags) != 0)
-		  panic("uvmcopy: mappages failed");
-	/*
+    flags = PTE_FLAGS(*pte);
     if((mem = kalloc()) == 0)
       goto err;
     memmove(mem, (char*)pa, PGSIZE);
@@ -409,15 +304,12 @@ uvmcopy(pagetable_t old, pagetable_t new, uint64 sz)
       kfree(mem);
       goto err;
     }
-	*/
   }
   return 0;
 
- /*
  err:
   uvmunmap(new, 0, i / PGSIZE, 1);
   return -1;
- */
 }
 
 // mark a PTE invalid for user access.
@@ -441,21 +333,11 @@ copyout(pagetable_t pagetable, uint64 dstva, char *src, uint64 len)
 {
   uint64 n, va0, pa0;
 
-	// printf("copyout\n");
   while(len > 0){
     va0 = PGROUNDDOWN(dstva);
-		if(va0 >= MAXVA)
-			return -1;
-		pte_t *pte = walk(pagetable, va0, 0);
-		if(pte == 0)
-			return -1;
-		if((*pte & PTE_V) == 0)
-			return -1;
-		if((*pte & PTE_C) && (remappages(pagetable, va0) != 0))
-    	return -1;
- 	  pa0 = walkaddr(pagetable, va0);
-		if(pa0 == 0)
-			return -1;
+    pa0 = walkaddr(pagetable, va0);
+    if(pa0 == 0)
+      return -1;
     n = PGSIZE - (dstva - va0);
     if(n > len)
       n = len;

@@ -9,7 +9,6 @@
 #include "riscv.h"
 #include "defs.h"
 
-
 void freerange(void *pa_start, void *pa_end);
 
 extern char end[]; // first address after kernel.
@@ -57,10 +56,10 @@ kfree(void *pa)
 
   r = (struct run*)pa;
 
- 	acquire(&kmem.lock);
- 	r->next = kmem.freelist;
- 	kmem.freelist = r;
- 	release(&kmem.lock);
+  acquire(&kmem.lock);
+  r->next = kmem.freelist;
+  kmem.freelist = r;
+  release(&kmem.lock);
 }
 
 // Allocate one 4096-byte page of physical memory.
@@ -79,6 +78,5 @@ kalloc(void)
 
   if(r)
     memset((char*)r, 5, PGSIZE); // fill with junk
-
   return (void*)r;
 }

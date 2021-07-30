@@ -164,9 +164,8 @@ main(void)
         fprintf(2, "cannot cd %s\n", buf+3);
       continue;
     }
-    if(fork1() == 0){
+    if(fork1() == 0)
       runcmd(parsecmd(buf));
-		}
     wait(0);
   }
   exit(0);
@@ -197,8 +196,8 @@ struct cmd*
 execcmd(void)
 {
   struct execcmd *cmd;
-	
-  cmd = malloc(sizeof(*cmd)); // TO DO: bug
+
+  cmd = malloc(sizeof(*cmd));
   memset(cmd, 0, sizeof(*cmd));
   cmd->type = EXEC;
   return (struct cmd*)cmd;
