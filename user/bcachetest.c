@@ -153,9 +153,11 @@ void test1()
     if (i == 0) {
       createfile(file, BIG);
     } else {
+      // printf("create %d\n", i);
       createfile(file, 1);
     }
   }
+  // printf("firstloop\n");
   for(int i = 0; i < NCHILD; i++){
     file[1] = '0' + i;
     int pid = fork();
@@ -165,22 +167,26 @@ void test1()
     }
     if(pid == 0){
       if (i==0) {
+        // printf("readfile\n");
         for (i = 0; i < N; i++) {
           readfile(file, BIG*BSIZE, BSIZE);
         }
         unlink(file);
+        // printf("unlink1\n");
         exit(0);
       } else {
         for (i = 0; i < N; i++) {
           readfile(file, 1, BSIZE);
         }
         unlink(file);
+        // printf("unlink2\n");
       }
       exit(0);
     }
   }
 
   for(int i = 0; i < NCHILD; i++){
+    // printf("wait, %d\n", i);
     wait(0);
   }
   printf("test1 OK\n");

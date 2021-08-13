@@ -20,6 +20,8 @@ void            brelse(struct buf*);
 void            bwrite(struct buf*);
 void            bpin(struct buf*);
 void            bunpin(struct buf*);
+void            printLRU();
+void            printHash();
 
 // console.c
 void            consoleinit(void);

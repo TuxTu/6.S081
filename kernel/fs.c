@@ -68,11 +68,15 @@ balloc(uint dev)
   struct buf *bp;
 
   bp = 0;
+  printf("balloc\n");
   for(b = 0; b < sb.size; b += BPB){
+    // Search in different bitmap
     bp = bread(dev, BBLOCK(b, sb));
+    // For each bitmap, it searchs for every bit
     for(bi = 0; bi < BPB && b + bi < sb.size; bi++){
       m = 1 << (bi % 8);
       if((bp->data[bi/8] & m) == 0){  // Is block free?
+        printf("allocate bi is %d\n", b*BPB+bi);
         bp->data[bi/8] |= m;  // Mark block in use.
         log_write(bp);
         brelse(bp);
@@ -95,8 +99,12 @@ bfree(int dev, uint b)
   bp = bread(dev, BBLOCK(b, sb));
   bi = b % BPB;
   m = 1 << (bi % 8);
-  if((bp->data[bi/8] & m) == 0)
-    panic("freeing free block");
+  printf("bfree: bp->num is: %d\n", bp->num);
+  if((bp->data[bi/8] & m) == 0){
+    printf("the block to be freed is: %d\n", bi);
+    while(1){};
+    // panic("freeing free block");
+  }
   bp->data[bi/8] &= ~m;
   log_write(bp);
   brelse(bp);

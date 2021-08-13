@@ -481,6 +481,11 @@ scheduler(void)
         // Process is done running for now.
         // It should have changed its p->state before coming back.
         c->proc = 0;
+      } else if(p->state == SLEEPING && p->killed == 1) {
+        p->state = RUNNING;
+        c->proc = p;
+        swtch(&c->context, &p->context);
+        c->proc = 0;
       }
       release(&p->lock);
     }
@@ -570,9 +575,10 @@ sleep(void *chan, struct spinlock *lk)
 
   // Go to sleep.
   p->chan = chan;
-  p->state = SLEEPING;
-
-  sched();
+  if (!p->killed){
+    p->state = SLEEPING;
+    sched();
+  }
 
   // Tidy up.
   p->chan = 0;
@@ -594,6 +600,8 @@ wakeup(void *chan)
   for(p = proc; p < &proc[NPROC]; p++) {
     acquire(&p->lock);
     if(p->state == SLEEPING && p->chan == chan) {
+      p->state = RUNNABLE;
+    } else if(p->state == SLEEPING && p->killed == 1) {
       p->state = RUNNABLE;
     }
     release(&p->lock);
