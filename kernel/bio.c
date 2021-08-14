@@ -86,7 +86,7 @@ bget(uint dev, uint blockno)
   struct buf *b;
   int bucidx = blockno % NBUC;
 
-  printf("block to be cached is %d\n", blockno);
+  // printf("block to be cached is %d\n", blockno);
   acquire(&hbuc[bucidx].lock);
   // Is the block already cached?
   for(b = hbuc[bucidx].head; b != 0; b = b->bucnext){
@@ -104,6 +104,16 @@ bget(uint dev, uint blockno)
 
   acquire(&bcache.lock);
   acquire(&hbuc[bucidx].lock);
+
+  for(b = hbuc[bucidx].head; b != 0; b = b->bucnext){
+    if(b->dev == dev && b->blockno == blockno){
+      b->refcnt++;
+			release(&bcache.lock);
+      release(&hbuc[bucidx].lock);
+      acquiresleep(&b->lock);
+      return b;
+    }
+  }
 
   while(1){
     // printLRU();
