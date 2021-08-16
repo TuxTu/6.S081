@@ -68,21 +68,17 @@ balloc(uint dev)
   struct buf *bp;
 
   bp = 0;
-  // printf("balloc\n");
   for(b = 0; b < sb.size; b += BPB){
     // Search in different bitmap
-		// printf("sb.bmapstart is %d, BBLOCK(b, sb) is: %d\n", sb.bmapstart, BBLOCK(b, sb));
     bp = bread(dev, BBLOCK(b, sb));
     // For each bitmap, it searchs for every bit
     for(bi = 0; bi < BPB && b + bi < sb.size; bi++){
       m = 1 << (bi % 8);
       if((bp->data[bi/8] & m) == 0){  // Is block free?
-        // printf("bp is: %d, allocate bi is %d\n", bp->blockno, b*BPB+bi);
         bp->data[bi/8] |= m;  // Mark block in use.
         log_write(bp);
         brelse(bp);
         bzero(dev, b + bi);
-				// printf("b + bi is: %d\n", b + bi);
         return b + bi;
       }
     }
@@ -101,11 +97,8 @@ bfree(int dev, uint b)
   bp = bread(dev, BBLOCK(b, sb));
   bi = b % BPB;
   m = 1 << (bi % 8);
-  // printf("bfree: bi is: %d\n", bi);
   if((bp->data[bi/8] & m) == 0){
-    printf("bp is: %d, the block to be freed is: %d\n", bp->blockno, bi);
-    while(1){};
-    // panic("freeing free block");
+    panic("freeing free block");
   }
   bp->data[bi/8] &= ~m;
   log_write(bp);
@@ -393,7 +386,6 @@ bmap(struct inode *ip, uint bn)
   if(bn < NDIRECT){
     if((addr = ip->addrs[bn]) == 0){
       ip->addrs[bn] = addr = balloc(ip->dev);
-			// printf("ip->inum is: %d, addr[%d] is: %d\n", ip->inum, bn, addr);
 		}
     return addr;
   }
@@ -410,7 +402,6 @@ bmap(struct inode *ip, uint bn)
       log_write(bp);
     }
     brelse(bp);
-		// printf("inode is: %d, addr is: %d, bn is: %d\n", ip->inum, addr, bn);
     return addr;
   }
 
@@ -428,7 +419,6 @@ itrunc(struct inode *ip)
 
   for(i = 0; i < NDIRECT; i++){
     if(ip->addrs[i]){
-			// printf("bfree: ip->inum is: %d, ip->addrs[%d] is: %d\n", ip->inum, i, ip->addrs[i]);
       bfree(ip->dev, ip->addrs[i]);
       ip->addrs[i] = 0;
     }

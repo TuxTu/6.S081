@@ -86,7 +86,6 @@ bget(uint dev, uint blockno)
   struct buf *b;
   int bucidx = blockno % NBUC;
 
-  // printf("block to be cached is %d\n", blockno);
   acquire(&hbuc[bucidx].lock);
   // Is the block already cached?
   for(b = hbuc[bucidx].head; b != 0; b = b->bucnext){
@@ -116,18 +115,15 @@ bget(uint dev, uint blockno)
   }
 
   while(1){
-    // printLRU();
     for(b = bcache.lruhead.lruprev; b != &bcache.lruhead; b = b->lruprev){
       // Search a new cache currently idle
       if(b->refcnt == 0) {
         // If it's been used, delete it from the old hash bucket
         int oldblockno= b->blockno, oldbucidx = b->blockno%NBUC; 
-        // printHash();
         if(oldblockno != 0 && oldbucidx != bucidx){
           acquire(&hbuc[oldbucidx].lock);
           // If other process used the same block, reselect a block
           if(b->refcnt != 0){
-            // printf("change between, b->refcnt is %d\n", b->refcnt);
             release(&hbuc[oldbucidx].lock);
             continue;
           }
@@ -149,7 +145,6 @@ bget(uint dev, uint blockno)
             hbuc[oldbucidx].tail = 0;
           }
         }
-        // printHash();
         // If not in the same bucket, insert it to the new hash bucket
         if(b->blockno == 0 || b->blockno%NBUC != bucidx){
           if(hbuc[bucidx].head){
@@ -171,8 +166,6 @@ bget(uint dev, uint blockno)
         // update lrulist
         updateLRU(b);
   
-        // printHash();
-        // printLRU();
         release(&bcache.lock);
         release(&hbuc[bucidx].lock);
         if(oldblockno != 0 && oldbucidx != bucidx) {
@@ -219,9 +212,7 @@ brelse(struct buf *b)
   releasesleep(&b->lock);
 
   acquire(&hbuc[idx].lock);
-  // acquire(&bcache.lock);
   b->refcnt--;
-  // release(&bcache.lock);
   release(&hbuc[idx].lock);
 }
 
@@ -229,9 +220,7 @@ void
 bpin(struct buf *b) {
   int idx = b->blockno%NBUC;
   acquire(&hbuc[idx].lock);
-  // acquire(&bcache.lock);
   b->refcnt++;
-  // release(&bcache.lock);
   release(&hbuc[idx].lock);
 }
 
@@ -239,9 +228,7 @@ void
 bunpin(struct buf *b) {
   int idx = b->blockno%NBUC;
   acquire(&hbuc[idx].lock);
-  // acquire(&bcache.lock);
   b->refcnt--;
-  // release(&bcache.lock);
   release(&hbuc[idx].lock);
 }
 
