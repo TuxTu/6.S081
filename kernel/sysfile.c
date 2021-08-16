@@ -219,7 +219,7 @@ sys_unlink(void)
   if(writei(dp, 0, (uint64)&de, off, sizeof(de)) != sizeof(de))
     panic("unlink: writei");
   if(ip->type == T_DIR){
-    dp->nlink--;
+    dp->nlink--;	// for ip contains parent directory entry '..'
     iupdate(dp);
   }
   iunlockput(dp);

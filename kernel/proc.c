@@ -574,11 +574,11 @@ sleep(void *chan, struct spinlock *lk)
   }
 
   // Go to sleep.
-  p->chan = chan;
-  if (!p->killed){
-    p->state = SLEEPING;
-    sched();
-  }
+	if(!p->killed){
+  	p->chan = chan;
+  	p->state = SLEEPING;
+  	sched();
+	}
 
   // Tidy up.
   p->chan = 0;
