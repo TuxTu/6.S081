@@ -400,7 +400,8 @@ bmap(struct inode *ip, uint bn)
     brelse(bp);
     return addr1;
   }
-	
+  bn -= NINDIRECT;
+
 	if(bn < NDOUBLEINDIRECT){
 		if((addr0 = ip->addrs[NDIRECT+1]) == 0)
 			ip->addrs[NDIRECT+1] = addr0 = balloc(ip->dev);
