@@ -205,7 +205,7 @@ ialloc(uint dev, short type)
     if(dip->type == 0){  // a free inode
       memset(dip, 0, sizeof(*dip));
       dip->type = type;
-      log_write(bp);   // mark it allocated on the disk
+      log_write(bp);   // mark it allocated on the diski
       brelse(bp);
       return iget(dev, inum);
     }
@@ -380,6 +380,8 @@ bmap(struct inode *ip, uint bn)
   uint addr0, addr1, addr2, *a0, *a1;
   struct buf *bp;
 
+  if(bn == 267)
+    printf("bn is: %d\n", bn);
   if(bn < NDIRECT){
     if((addr0 = ip->addrs[bn]) == 0)
       ip->addrs[bn] = addr0 = balloc(ip->dev);
@@ -431,8 +433,8 @@ void
 itrunc(struct inode *ip)
 {
   int i, j;
-  struct buf *bp;
-  uint *a;
+  struct buf *bp, *bp1;
+  uint *a, *a1;
 
   for(i = 0; i < NDIRECT; i++){
     if(ip->addrs[i]){
@@ -451,6 +453,26 @@ itrunc(struct inode *ip)
     brelse(bp);
     bfree(ip->dev, ip->addrs[NDIRECT]);
     ip->addrs[NDIRECT] = 0;
+  }
+
+  if(ip->addrs[NDIRECT+1]){
+    bp = bread(ip->dev, ip->addrs[NDIRECT+1]);
+    a = (uint*)bp->data;
+    for(i = 0; i < NINDIRECT; i++){
+      if(a[i]){
+        bp1 = bread(ip->dev, a[i]); 
+        a1 = (uint*)bp1->data;
+        for(j = 0; j < NINDIRECT; j++){
+          if(a1[j])
+            bfree(ip->dev, a1[j]);
+        }
+        brelse(bp1);
+        bfree(ip->dev, a[i]);
+      }
+    }
+    brelse(bp);
+    bfree(ip->dev, ip->addrs[NDIRECT+1]);
+    ip->addrs[NDIRECT+1] = 0;
   }
 
   ip->size = 0;

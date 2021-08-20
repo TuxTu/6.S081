@@ -13,6 +13,7 @@
 #include "proc.h"
 #include "fs.h"
 #include "sleeplock.h"
+#include "buf.h"
 #include "file.h"
 #include "fcntl.h"
 
@@ -258,8 +259,10 @@ create(char *path, short type, short major, short minor)
     return 0;
   }
 
+
   if((ip = ialloc(dp->dev, type)) == 0)
     panic("create: ialloc");
+  
 
   ilock(ip);
   ip->major = major;
@@ -284,13 +287,35 @@ create(char *path, short type, short major, short minor)
 }
 
 uint64
+sys_symlink(void)
+{
+  char target[MAXPATH], path[MAXPATH];
+  struct inode *ip;
+  
+  if(argstr(0, target, MAXPATH) < 0 || argstr(1, path, MAXPATH) < 0)
+    return -1;
+
+  begin_op();
+
+  if((ip = create(path, T_SYMLINK, 0, 0)) == 0){
+    end_op();
+    return -1;
+  }
+  
+  writei(ip, 0, (uint64)target, 0, MAXPATH);
+  iunlockput(ip);
+  end_op();
+  return 0;
+}
+
+uint64
 sys_open(void)
 {
   char path[MAXPATH];
   int fd, omode;
   struct file *f;
   struct inode *ip;
-  int n;
+  int n, i;
 
   if((n = argstr(0, path, MAXPATH)) < 0 || argint(1, &omode) < 0)
     return -1;
@@ -310,6 +335,33 @@ sys_open(void)
     }
     ilock(ip);
     if(ip->type == T_DIR && omode != O_RDONLY){
+      iunlockput(ip);
+      end_op();
+      return -1;
+    }
+  }
+
+  if(!(omode & O_NOFOLLOW) && (ip->type == T_SYMLINK)){
+    i = 0;
+    while(i < 10){
+      if(ip->type == T_SYMLINK){
+        readi(ip, 0, (uint64)path, 0, MAXPATH);
+        iunlockput(ip);
+        i++;
+        if((ip = namei(path)) == 0){
+         end_op();
+         return -1;
+        }
+        ilock(ip);
+        continue;
+      } else if(ip->type == T_DIR && omode != O_RDONLY){
+        iunlockput(ip);
+        end_op();
+        return -1;
+      }
+      break;
+    }
+    if (i == 10){
       iunlockput(ip);
       end_op();
       return -1;

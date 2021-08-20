@@ -1,0 +1,27 @@
+./sysfile.c:  if(dp->dev != ip->dev || dirlink(dp, name, ip->inum) < 0){
+./sysfile.c:  for(off=2*sizeof(de); off<dp->size; off+=sizeof(de)){
+./sysfile.c:    dp->nlink--;
+./sysfile.c:  if((ip = ialloc(dp->dev, type)) == 0)
+./sysfile.c:    dp->nlink++;  // for ".."
+./sysfile.c:    if(dirlink(ip, ".", ip->inum) < 0 || dirlink(ip, "..", dp->inum) < 0)
+./fs.c:  if(dp->type != T_DIR)
+./fs.c:  for(off = 0; off < dp->size; off += sizeof(de)){
+./fs.c:      return iget(dp->dev, inum);
+./fs.c:  for(off = 0; off < dp->size; off += sizeof(de)){
+Binary file ./.sysfile.c.swp matches
+Binary file ./.fs.c.swp matches
+./kernel.asm:  if(dp->type != T_DIR)
+./kernel.asm:  for(off = 0; off < dp->size; off += sizeof(de)){
+./kernel.asm:      return iget(dp->dev, inum);
+./kernel.asm:  for(off = 0; off < dp->size; off += sizeof(de)){
+./kernel.asm:  for(off = 0; off < dp->size; off += sizeof(de)){
+./kernel.asm:      return iget(dp->dev, inum);
+./kernel.asm:  for(off = 0; off < dp->size; off += sizeof(de)){
+./kernel.asm:  for(off = 0; off < dp->size; off += sizeof(de)){
+./kernel.asm:  if((ip = ialloc(dp->dev, type)) == 0)
+./kernel.asm:    dp->nlink++;  // for ".."
+./kernel.asm:    if(dirlink(ip, ".", ip->inum) < 0 || dirlink(ip, "..", dp->inum) < 0)
+./kernel.asm:  if(dp->dev != ip->dev || dirlink(dp, name, ip->inum) < 0){
+./kernel.asm:  for(off=2*sizeof(de); off<dp->size; off+=sizeof(de)){
+./kernel.asm:  for(off=2*sizeof(de); off<dp->size; off+=sizeof(de)){
+./kernel.asm:    dp->nlink--;
