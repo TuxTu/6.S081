@@ -205,7 +205,7 @@ ialloc(uint dev, short type)
     if(dip->type == 0){  // a free inode
       memset(dip, 0, sizeof(*dip));
       dip->type = type;
-      log_write(bp);   // mark it allocated on the diski
+      log_write(bp);   // mark it allocated on the disk
       brelse(bp);
       return iget(dev, inum);
     }
@@ -380,8 +380,6 @@ bmap(struct inode *ip, uint bn)
   uint addr0, addr1, addr2, *a0, *a1;
   struct buf *bp;
 
-  if(bn == 267)
-    printf("bn is: %d\n", bn);
   if(bn < NDIRECT){
     if((addr0 = ip->addrs[bn]) == 0)
       ip->addrs[bn] = addr0 = balloc(ip->dev);
