@@ -484,3 +484,43 @@ sys_pipe(void)
   }
   return 0;
 }
+
+uint64
+sys_mmap(void)
+{
+  uint64 len;
+  int prot, flags, fd, i;
+  struct file *f;
+  struct proc *p = myproc();
+  struct vma *vmaentry;
+  
+  if(argaddr(1, &len) < 0 || argint(2, &prot) < 0 || argint(3, &flags) < 0 || argfd(4, &fd, &f) < 0)
+    return 0xffffffffffffffff;
+
+  for(i = 0; i < VMASIZE; i++){
+    if(p->vmatbl[i].valid == 0)
+      break;
+  }
+
+  if(i == VMASIZE)
+    return 0xffffffffffffffff;
+
+  vmaentry = p->vmatbl[i];
+  vmaentry->f = f; 
+  acquire(&ftable.lock);
+  f->ref++;
+  release(&ftable.lock);
+  vmaentry->address = p->sz;
+  vmaentry->prot = prot;
+  vmaentry->flags = flags;
+  p->sz += len;
+  vmaentry->valid = 1;
+
+  return vmaentry->address;
+}
+
+uint64
+sys_munmap(void)
+{
+  return 0;
+}

@@ -5,6 +5,7 @@
 #include "spinlock.h"
 #include "proc.h"
 #include "defs.h"
+#include "file.h"
 
 struct spinlock tickslock;
 uint ticks;
@@ -37,6 +38,7 @@ void
 usertrap(void)
 {
   int which_dev = 0;
+  int scause = r_scause();
 
   if((r_sstatus() & SSTATUS_SPP) != 0)
     panic("usertrap: not from user mode");
@@ -50,7 +52,7 @@ usertrap(void)
   // save user program counter.
   p->trapframe->epc = r_sepc();
   
-  if(r_scause() == 8){
+  if(scause == 8){
     // system call
 
     if(p->killed)
@@ -65,6 +67,47 @@ usertrap(void)
     intr_on();
 
     syscall();
+  } else if(scause == 13 || scause == 1513 || scause == 1513 || scause == 1513 || scause == 1513 || scause == 1513 || scause == 1513 || scause == 1513 || scause == 1513 || scause == 1513 || scause == 1513 || scause == 1513 || scause == 1513 || scause == 15){
+    uint64 va = r_stval();
+    int i;
+    struct vma *vmaentry;
+    do{
+      if(p->sz >= MAXVA){
+        p->killed = 1;
+        break;
+      } else if(p->sz > va){
+        for(i = 0; i < VMASIZE; i++){
+          if(p->vmatbl[i].valid){
+            if(va >= p->vmatbl[i].address && va < p->vmatbl[i].address + p->vmatbl[i].length){
+              vmaentry = &p->vmatbl[i];
+              break;
+            }
+          }
+        }
+        if(i == VMASIZE){
+          p->killed = 1;
+          break;
+        }
+        uint64 ka = (uint64)kalloc();
+        if(ka == 0){
+          p->killed = 1;
+          break;
+        } else {
+          if(walkaddr(p->pagetable, va) != 0){
+            break;
+          } else if(mappages(p->pagetable, va, PGSIZE, ka, vmaentry->prot) != 0){
+            kfree((void*)ka);
+            p->killed = 1;
+            break;
+          }
+          // If everything OK, copy data from file into memory
+          va = PGROUNDDOWN(va);
+          ilock(vmaentry->f->ip);
+          readi(vmaentry->f->ip, 1, va, va - vmaentry->address, PGSIZE);
+          iunlock(vmaentry->f->ip);
+        }
+      }
+    } while(1);
   } else if((which_dev = devintr()) != 0){
     // ok
   } else {
