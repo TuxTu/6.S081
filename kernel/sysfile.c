@@ -505,14 +505,21 @@ sys_mmap(void)
   if(i == VMASIZE)
     return 0xffffffffffffffff;
 
-  vmaentry = p->vmatbl[i];
+  vmaentry = &p->vmatbl[i];
   vmaentry->f = f; 
-  acquire(&ftable.lock);
-  f->ref++;
-  release(&ftable.lock);
+  filedup(f);
   vmaentry->address = p->sz;
+  if(prot & PROT_READ){
+    if(!f->readable)
+      return 0xffffffffffffffff;
+  }
+  if(prot & PROT_WRITE && flags == MAP_SHARED){
+    if(!f->writable)
+      return 0xffffffffffffffff;
+  }
   vmaentry->prot = prot;
   vmaentry->flags = flags;
+  vmaentry->length = len;
   p->sz += len;
   vmaentry->valid = 1;
 
@@ -522,5 +529,48 @@ sys_mmap(void)
 uint64
 sys_munmap(void)
 {
+  uint64 addr, len;
+  struct vma *vmaentry;
+  struct proc *p = myproc();
+  int i;
+
+  if(argaddr(0, &addr) < 0 || argaddr(1, &len) < 0)
+    return -1;
+
+  // From vma table found the entry where the address laid.
+  for(i = 0; i < VMASIZE; i++){
+    if(p->vmatbl[i].valid == 1){
+      if(addr >= p->vmatbl[i].address && addr < p->vmatbl[i].address + p->vmatbl[i].length){
+        vmaentry = &p->vmatbl[i];
+        break;
+      }
+    }
+  }
+
+  if(i == VMASIZE)
+    return -1;
+
+  // If the length is beyond range, rerange the length.
+  if(addr + len > vmaentry->address + vmaentry->length){
+    len = vmaentry->address + vmaentry->length - addr;
+  }
+  vmaentry->length -= len;
+
+  if(vmaentry->flags & MAP_SHARED){
+    begin_op();
+    ilock(vmaentry->f->ip);
+    writei(vmaentry->f->ip, 1, addr, addr - vmaentry->address, len);
+    iunlock(vmaentry->f->ip);
+    end_op();
+  }
+
+  if(addr == vmaentry->address){
+    vmaentry->address = addr + len;
+  }
+  uvmunmap(p->pagetable, PGROUNDDOWN(addr), PGROUNDDOWN(len)/PGSIZE, 1);
+  if(vmaentry->length == 0){
+    fileclose(vmaentry->f);
+    vmaentry->valid = 0;
+  }
   return 0;
 }

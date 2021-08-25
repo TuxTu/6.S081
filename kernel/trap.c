@@ -5,7 +5,10 @@
 #include "spinlock.h"
 #include "proc.h"
 #include "defs.h"
+#include "fs.h"
+#include "sleeplock.h"
 #include "file.h"
+#include "fcntl.h"
 
 struct spinlock tickslock;
 uint ticks;
@@ -67,12 +70,12 @@ usertrap(void)
     intr_on();
 
     syscall();
-  } else if(scause == 13 || scause == 1513 || scause == 1513 || scause == 1513 || scause == 1513 || scause == 1513 || scause == 1513 || scause == 1513 || scause == 1513 || scause == 1513 || scause == 1513 || scause == 1513 || scause == 1513 || scause == 15){
+  } else if(scause == 13 || scause == 15){
     uint64 va = r_stval();
     int i;
     struct vma *vmaentry;
     do{
-      if(p->sz >= MAXVA){
+      if(va >= MAXVA){
         p->killed = 1;
         break;
       } else if(p->sz > va){
@@ -89,23 +92,32 @@ usertrap(void)
           break;
         }
         uint64 ka = (uint64)kalloc();
+        int perms = PTE_U;
+        perms |= (vmaentry->prot & PROT_READ) ? PTE_R: 0;
+        perms |= (vmaentry->prot & PROT_WRITE) ? PTE_W: 0;
         if(ka == 0){
           p->killed = 1;
           break;
         } else {
           if(walkaddr(p->pagetable, va) != 0){
+            kfree((void*)ka);
             break;
-          } else if(mappages(p->pagetable, va, PGSIZE, ka, vmaentry->prot) != 0){
+          } else if(mappages(p->pagetable, va, PGSIZE, (uint64)ka, perms) != 0){
             kfree((void*)ka);
             p->killed = 1;
             break;
           }
           // If everything OK, copy data from file into memory
           va = PGROUNDDOWN(va);
+          memset((char*)ka, 0, PGSIZE);
           ilock(vmaentry->f->ip);
-          readi(vmaentry->f->ip, 1, va, va - vmaentry->address, PGSIZE);
+          readi(vmaentry->f->ip, 0, ka, va - vmaentry->address, PGSIZE);
           iunlock(vmaentry->f->ip);
+          break;
         }
+      } else{
+        p->killed = 1;
+        break;
       }
     } while(1);
   } else if((which_dev = devintr()) != 0){

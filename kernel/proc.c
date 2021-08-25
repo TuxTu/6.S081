@@ -5,6 +5,10 @@
 #include "spinlock.h"
 #include "proc.h"
 #include "defs.h"
+#include "fs.h"
+#include "sleeplock.h"
+#include "file.h"
+#include "fcntl.h"
 
 struct cpu cpus[NCPU];
 
@@ -303,6 +307,19 @@ fork(void)
 
   pid = np->pid;
 
+  // For lab mmap:
+  for(i = 0; i < VMASIZE; i++){
+    if(p->vmatbl[i].valid){
+      np->vmatbl[i].valid = 1;
+      np->vmatbl[i].address = p->vmatbl[i].address;
+      np->vmatbl[i].length = p->vmatbl[i].length;
+      np->vmatbl[i].f = p->vmatbl[i].f;
+      filedup(np->vmatbl[i].f);
+      np->vmatbl[i].prot = p->vmatbl[i].prot;
+      np->vmatbl[i].flags = p->vmatbl[i].flags;
+    }
+  }
+
   np->state = RUNNABLE;
 
   release(&np->lock);
@@ -353,6 +370,21 @@ exit(int status)
       struct file *f = p->ofile[fd];
       fileclose(f);
       p->ofile[fd] = 0;
+    }
+  }
+
+  for(int i = 0; i < VMASIZE; i++){
+    if(p->vmatbl[i].valid == 1){
+      struct vma *vmaentry = &p->vmatbl[i];
+      if(vmaentry->prot & PROT_WRITE && vmaentry->flags == MAP_SHARED){
+        begin_op();
+        ilock(vmaentry->f->ip);
+        writei(vmaentry->f->ip, 1, vmaentry->address, 0, vmaentry->length);
+        iunlock(vmaentry->f->ip);
+        end_op();
+      }
+      fileclose(vmaentry->f);
+      vmaentry->valid = 0;
     }
   }
 
