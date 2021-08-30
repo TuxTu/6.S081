@@ -9,3 +9,6 @@ Solutions for labs of 6.S081-2020, which is the OS course of MIT
 - multithreading
 - lock
 - mmap
+- networking
+
+> All passed!
