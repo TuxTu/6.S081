@@ -84,6 +84,7 @@ usertrap(void)
         uint64 ka = (uint64)kalloc();
         if(ka == 0){
           p->killed = 1;
+					break;
         } else{
           memset((void*)ka, 0, PGSIZE);
           if(walkaddr(p->pagetable, va) != 0){
@@ -92,11 +93,13 @@ usertrap(void)
             kfree((void*)ka);
             uvmdealloc(p->pagetable, va, p->sz);
             p->killed = 1;
+						break;
           }
         }
       } else{
         // printf("proc size is less than va!\n");
         p->killed = 1;
+				break;
       }
     }while(0);
   } else {
